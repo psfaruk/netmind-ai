@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- NETMIND "warm studio" palette — dark variant -->
+    <color name="nm_bg">#262521</color>
+    <color name="nm_surface">#302F2A</color>
+    <color name="nm_surface_alt">#2A2A25</color>
+    <color name="nm_user_bubble">#38352E</color>
+    <color name="nm_accent">#D97757</color>
+    <color name="nm_accent_dark">#E08A68</color>
+    <color name="nm_on_accent">#FFFFFF</color>
+    <color name="nm_text_primary">#ECE9E0</color>
+    <color name="nm_text_secondary">#A49E90</color>
+    <color name="nm_hairline">#3A3833</color>
+    <color name="nm_chip_bg">#35342E</color>
+    <color name="nm_status_green">#6BC79A</color>
+
+    <!-- legacy aliases -->
+    <color name="netmind_primary">#D97757</color>
+    <color name="netmind_primary_dark">#E08A68</color>
+    <color name="netmind_accent">#D97757</color>
+    <color name="netmind_primary_container">#35342E</color>
+</resources>

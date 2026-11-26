@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.Netmind" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/nm_accent</item>
+        <item name="colorOnPrimary">@color/nm_on_accent</item>
+        <item name="colorPrimaryContainer">@color/nm_chip_bg</item>
+        <item name="colorOnPrimaryContainer">@color/nm_accent_dark</item>
+        <item name="colorSecondary">@color/nm_accent</item>
+        <item name="colorSecondaryContainer">@color/nm_chip_bg</item>
+        <item name="colorOnSecondaryContainer">@color/nm_text_primary</item>
+        <item name="android:colorBackground">@color/nm_bg</item>
+        <item name="colorSurface">@color/nm_surface</item>
+        <item name="colorOnSurface">@color/nm_text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/nm_text_secondary</item>
+        <item name="colorOutline">@color/nm_hairline</item>
+        <item name="android:statusBarColor">@color/nm_bg</item>
+        <item name="android:navigationBarColor">@color/nm_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:textColorHint">@color/nm_text_secondary</item>
+    </style>
+</resources>

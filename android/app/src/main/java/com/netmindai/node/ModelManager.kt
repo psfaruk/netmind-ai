@@ -25,18 +25,18 @@ object ModelManager {
 
     val PRESETS = listOf(
         Preset(
-            label = "Qwen3-0.6B — Q4_K_M (default)",
-            url = "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
-            file = "Qwen3-0.6B-Q4_K_M.gguf",
-            size = "~400 MB",
-            license = "Apache-2.0 (Qwen3 open weights)",
+            label = "Gemma 3 4B — বাংলা / 140+ languages (default)",
+            url = "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf",
+            file = "gemma-3-4b-it-Q4_K_M.gguf",
+            size = "~2.4 GB download · ~4 GB RAM while running",
+            license = "Gemma open weights (runs 100% on this device)",
         ),
         Preset(
-            label = "Qwen2.5-0.5B-Instruct — Q4_K_M",
-            url = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf",
-            file = "qwen2.5-0.5b-instruct-q4_k_m.gguf",
-            size = "~400 MB",
-            license = "Apache-2.0 (Qwen2.5 open weights)",
+            label = "Qwen3-0.6B — light · Deep Think · English/中文",
+            url = "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
+            file = "Qwen3-0.6B-Q4_K_M.gguf",
+            size = "~484 MB download · ~2 GB RAM",
+            license = "Apache-2.0 (Qwen3 open weights)",
         ),
     )
 

@@ -1,9 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="netmind_primary">#0E9F6E</color>
-    <color name="netmind_primary_dark">#0B7A56</color>
-    <color name="netmind_accent">#14B8A6</color>
-    <color name="netmind_primary_container">#B9F2D9</color>
+    <!-- NETMIND "warm studio" palette (Claude-inspired cream + coral) -->
+    <color name="nm_bg">#F5F4EF</color>
+    <color name="nm_surface">#FBFAF6</color>
+    <color name="nm_surface_alt">#EFEEE6</color>
+    <color name="nm_user_bubble">#E9E5D8</color>
+    <color name="nm_accent">#D97757</color>
+    <color name="nm_accent_dark">#C05E3F</color>
+    <color name="nm_on_accent">#FFFFFF</color>
+    <color name="nm_text_primary">#3D3A34</color>
+    <color name="nm_text_secondary">#8B857A</color>
+    <color name="nm_hairline">#E6E3D8</color>
+    <color name="nm_chip_bg">#EFEDE3</color>
+    <color name="nm_status_green">#3E9B6C</color>
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
+
+    <!-- legacy aliases (referenced by older layouts / theme overlays) -->
+    <color name="netmind_primary">#D97757</color>
+    <color name="netmind_primary_dark">#C05E3F</color>
+    <color name="netmind_accent">#D97757</color>
+    <color name="netmind_primary_container">#EFEDE3</color>
 </resources>

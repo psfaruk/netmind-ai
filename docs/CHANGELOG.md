@@ -2,6 +2,18 @@
 
 Format: Keep-a-Changelog-ish, dates ISO. Project follows phase gates in `DEVELOPMENT_PHASES.md`.
 
+## [Android 0.2.0-alpha.1] — 2026-11-27 — app overhaul (Claude-style UI + multilingual)
+### Added
+- Gemma 3 4B (Q4_K_M) as default model preset — validated locally: fluent, structured বাংলা answers (2361 chars, no repetition), 140+ languages, ~2.4 GB download / ~4 GB RAM. Qwen3-0.6B remains as the light preset; existing installs keep their downloaded Qwen file (migration in Prefs).
+- Deep Think mode ON by default: live "Thinking · N tokens" row while Qwen3 reasons, then streaming answer with text cursor; toggle chip for instant (/no_think) mode.
+- Claude-style chat UI: warm cream+coral day/night theme, serif wordmark, welcome screen (time-aware greeting + 4 suggestion cards), user bubbles / plain assistant text with avatar, per-message stats (thought/answered tokens, tok/s), copy action, send/stop morphing button, model auto-load via status chip (Prepare button removed).
+### Changed
+- Multilingual + thorough system prompt (mirror user's language, structured depth); max generation 512 → 1024 tokens; Qwen3 thinking-mode sampling (temp 0.6, top_p 0.95, top_k 20) in the JNI engine.
+### Fixed
+- Thinking-mode repetition loops (temp/sampling), empty-reply row cleanup, meta stats for non-thinking models.
+### Known limits (honest)
+- Qwen3-0.6B produces word-salad Bangla (model capacity, not a prompt bug) — hence the Gemma default. 0.6B ≠ Claude Opus: quality gap is hardware/model-size bound; the distributed-network phase is the path beyond it.
+
 ## [0.3.0] — 2026-11-26 — Phase 2 (execution engine core)
 ### Added
 - Task execution engine: model routing (kind → registry model, explicit override), worker claim (`POST /api/v1/workers/claim`, priority+FIFO, `FOR UPDATE SKIP LOCKED` on PostgreSQL), result submission (`POST /api/v1/workers/results`), claim-TTL expiry requeue with attempts cap, deadline enforcement at claim time, late-result rejection (409).

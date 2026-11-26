@@ -2,23 +2,55 @@
 <resources>
     <string name="app_name">NETMIND AI</string>
 
+    <!-- Brand -->
+    <string name="wordmark">NetMind</string>
+    <string name="avatar_glyph">N</string>
+
     <!-- Tabs -->
     <string name="tab_chat">Chat</string>
     <string name="tab_tasks">Tasks</string>
     <string name="tab_node">Node</string>
 
     <!-- Chat -->
-    <string name="status_engine_starting">Starting NETMIND engine…</string>
-    <string name="btn_models">Model ▾</string>
-    <string name="btn_prepare">Prepare model</string>
-    <string name="btn_stop">Stop</string>
-    <string name="btn_unload">Unload</string>
+    <string name="status_engine_starting">Starting engine…</string>
+    <string name="btn_models">Model</string>
+    <string name="btn_models_desc">Model manager</string>
+    <string name="btn_clear_chat">Clear conversation</string>
     <string name="btn_send">Send</string>
-    <string name="hint_input">Type a message…</string>
+    <string name="btn_copy">Copy message</string>
+    <string name="hint_input">Message NetMind…</string>
+
+    <string name="deep_think_on">✦ Deep think · on</string>
+    <string name="deep_think_off">✦ Deep think · off</string>
+    <string name="thinking_label">Thinking</string>
+
+    <string name="greeting_morning">Good morning</string>
+    <string name="greeting_afternoon">Good afternoon</string>
+    <string name="greeting_evening">Good evening</string>
+    <string name="greeting_default">Hello</string>
+    <string name="welcome_sub">How can I help you today?</string>
+
+    <string name="sg_explain_title">Explain a topic</string>
+    <string name="sg_explain_sub">Transformer models, step by step</string>
+    <string name="sg_bangla_title">বাংলায় লিখো</string>
+    <string name="sg_bangla_sub">AI কী? সহজ ব্যাখ্যা, উদাহরণসহ</string>
+    <string name="sg_translate_title">Translate</string>
+    <string name="sg_translate_sub">English → natural Bangla</string>
+    <string name="sg_code_title">Code help</string>
+    <string name="sg_code_sub">Prime checker with comments</string>
+
     <string name="dialog_model_note">Only open-weight GGUF models are supported. The file is
         downloaded once into app storage and inference runs 100% on this device —
         no vendor API is contacted.</string>
     <string name="hint_custom_url">Custom .gguf URL</string>
+    <string name="confirm_clear_title">Clear this conversation?</string>
+    <string name="confirm_clear_msg">The transcript on this screen will be cleared.
+        Nothing is sent anywhere — it was never uploaded.</string>
+
+    <!-- legacy strings still referenced by older widgets -->
+    <string name="btn_prepare">Prepare model</string>
+    <string name="btn_stop">Stop</string>
+    <string name="btn_unload">Unload</string>
 
     <!-- Tasks -->
     <string name="tasks_header">Local tasks (offline)</string>

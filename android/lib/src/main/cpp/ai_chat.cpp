@@ -31,7 +31,10 @@ constexpr int   N_THREADS_HEADROOM      = 2;
 constexpr int   DEFAULT_CONTEXT_SIZE    = 4096;
 constexpr int   OVERFLOW_HEADROOM       = 4;
 constexpr int   BATCH_SIZE              = 512;
-constexpr float DEFAULT_SAMPLER_TEMP    = 0.7f;
+// Qwen3 recommended sampling for THINKING mode: temp 0.6, top_p 0.95, top_k 20.
+// (alpha.2 used 0.7 which is the no-think recommendation; v0.2 ships with
+//  Deep Think ON by default, so use the thinking-mode values.)
+constexpr float DEFAULT_SAMPLER_TEMP    = 0.6f;
 
 static llama_model                      * g_model;
 static llama_context                    * g_context;
@@ -107,8 +110,7 @@ static llama_context *init_context(llama_model *model, const int n_ctx = DEFAULT
 static common_sampler *new_sampler(float temp) {
     common_params_sampling sparams;
     sparams.temp = temp;
-    // Qwen3 recommended sampling: temp 0.7, top_p 0.95, top_k 20.
-    // Low-temp (0.3) greedy-ish sampling made small thinking models loop.
+    // Qwen3 (thinking mode): temp 0.6, top_p 0.95, top_k 20.
     sparams.top_p = 0.95f;
     sparams.top_k = 20;
     return common_sampler_init(g_model, sparams);

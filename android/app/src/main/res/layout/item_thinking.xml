@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="18dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="64dp"
+    android:paddingBottom="8dp">
+
+    <TextView
+        android:id="@+id/avatar"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:background="@drawable/bg_avatar"
+        android:gravity="center"
+        android:text="@string/avatar_glyph"
+        android:textColor="@color/nm_on_accent"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        tools:text="N" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/thinking_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/thinking_label"
+            android:textColor="@color/nm_text_secondary"
+            android:textSize="14sp"
+            android:textStyle="italic" />
+
+        <TextView
+            android:id="@+id/thinking_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/nm_text_secondary"
+            android:textSize="11sp"
+            tools:text="132 tokens so far…" />
+    </LinearLayout>
+</LinearLayout>

@@ -8,8 +8,8 @@
 > **Core policy:** no vendor model API. No OpenAI, Anthropic, Google or any
 > other company's inference service is contacted. All inference runs locally
 > with [llama.cpp](https://github.com/ggml-org/llama.cpp) on open-weight
-> GGUF models (Apache-2.0). The app works fully offline after the one-time
-> model download.
+> GGUF models (Gemma terms / Apache-2.0). The app works fully offline after
+> the one-time model download.
 
 ---
 
@@ -19,19 +19,42 @@
 
 1. Go to [Releases](https://github.com/psfaruk/netmind-ai/releases) and download the latest `NETMIND-Node-v*.apk`.
 2. Open it on your phone and allow "install from unknown sources" when asked.
-3. Open **NETMIND AI** → *Chat* tab → **Prepare model** → the default open-weight model (~400 MB) downloads once.
-4. Chat, manage local tasks, and inspect your device's node profile — all offline.
+3. Open **NETMIND AI** → tap the status chip once → the default open-weight model (Gemma 3 4B, ~2.4 GB — real বাংলা & 140+ languages) downloads once and loads automatically. Prefer a tiny model? Pick *Qwen3-0.6B (~484 MB)* in the layers-icon model picker.
+4. Chat (with live Deep-Think indicator, streaming, copy, stats), manage local tasks, and inspect your device's node profile — all offline.
 
 **বাংলা**
 
 1. [Releases](https://github.com/psfaruk/netmind-ai/releases) পেজ থেকে সর্বশেষ `NETMIND-Node-v*.apk` ডাউনলোড করুন।
 2. ফোনে খুলে "unknown sources" অনুমতি দিন — ইনস্টল হবে।
-3. **NETMIND AI** অ্যাপ খুলুন → *Chat* ট্যাব → **Prepare model** → ডিফল্ট ওপেন-ওয়েট মডেল (~400 MB) একবার ডাউনলোড হবে।
-4. এরপর সম্পূর্ণ অফলাইন: চ্যাট, লোকাল টাস্ক ম্যানেজমেন্ট, নোড প্রোফাইল — কোনো সার্ভার বা কোম্পানির মডেল ছাড়াই।
+3. **NETMIND AI** অ্যাপ খুলুন → উপরের স্ট্যাটাস চিপে একবার ট্যাপ করুন → ডিফল্ট ওপেন-ওয়েট মডেল (Gemma 3 4B, ~2.4 GB — আসল বাংলা + ১৪০+ ভাষা) একবার ডাউনলোড হয়ে নিজেই লোড হবে। ছোট মডেল চাইলে লেয়ার্স-আইকনের মডেল পিকার থেকে *Qwen3-0.6B (~484 MB)* বেছে নিন।
+4. এরপর সম্পূর্ণ অফলাইন: চ্যাট (লাইভ Deep-Think ইন্ডিকেটর, স্ট্রিমিং, কপি, স্ট্যাটস), লোকাল টাস্ক, নোড প্রোফাইল — কোনো সার্ভার বা কোম্পানির মডেল ছাড়াই।
 
-Requirements: Android 9+ (API 28), arm64 phone (or x86_64 emulator), ~2 GB free RAM.
+Requirements: Android 9+ (API 28), arm64 phone (or x86_64 emulator). Default
+Gemma 3 4B model needs ~4 GB free RAM; the light Qwen3-0.6B option needs ~2 GB.
 
 Every push to `main` is built by GitHub Actions; tagged versions (`v*`) are published as GitHub Releases automatically.
+
+### v0.2.0-alpha.1 (Claude-style app)
+
+The big app overhaul — the chat experience was rebuilt:
+
+- **মডেল/Model:** default changed to **Gemma 3 4B** — the first phone-sized
+  open-weight model with genuinely good **বাংলা** (Bengali) and 140+
+  languages (validated: fluent structured Bangla answers, no repetition
+  loops). Qwen3-0.6B stays as the light "Deep Think" option. Existing
+  installs that already have the Qwen file keep using it (no forced re-download).
+- **Deep Think:** Qwen3 reasoning is now ON by default with a live
+  "Thinking · N tokens" row (Claude extended-thinking UX) instead of hidden
+  blank time; toggle it off for instant replies. Sampling follows Qwen3's
+  thinking-mode recommendation (temp 0.6 / top_p 0.95 / top_k 20).
+- **Answers are deeper & longer:** new multilingual system prompt (mirror the
+  user's language, structured full answers) + max generation 512 → 1024 tokens.
+- **New UI:** warm cream + coral "studio" theme (day/night), serif wordmark,
+  welcome screen with greeting + 4 suggestion cards, Claude-style message
+  bubbles with avatar and per-message stats (thought/answered tokens, tok/s),
+  copy action, rounded input dock with send/stop morph, model auto-load —
+  no more "Prepare model" button (the status chip drives download/load).
+- Fixed alpha.2 leftovers: thinking-mode repetition loops, empty replies.
 
 ### v0.1.0-alpha.2 (bug-fix release)
 
@@ -67,8 +90,9 @@ If `alpha.1` seemed to "hang" after sending a message (blank reply), install `al
 Three sections in one offline app:
 
 - **Chat** — local LLM chat via llama.cpp. Pick a preset open-weight model
-  (Qwen3-0.6B Q4_K_M default, or Qwen2.5-0.5B-Instruct), download it once
-  in-app, then generate completely offline with streaming tokens.
+  (Gemma 3 4B default — বাংলা/140+ languages; or Qwen3-0.6B with Deep
+  Think), download it once in-app, then generate completely offline with
+  streaming tokens.
 - **Tasks** — a local task manager (SQLite, on-device only).
 - **Node** — this device's profile as a NETMIND volunteer node (CPU cores,
   RAM, battery, storage, model status).

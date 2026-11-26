@@ -1,5 +1,8 @@
 package com.netmindai.node
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -12,9 +15,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.arm.aichat.AiChat
 import com.arm.aichat.InferenceEngine
-import com.google.android.material.button.MaterialButton
 import java.io.File
-import java.util.UUID
+import java.util.Calendar
 import kotlin.concurrent.thread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,33 +26,38 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Chat section: local, offline LLM chat backed by the llama.cpp binding.
+ * Chat section — Claude-style offline chat.
  *
- * alpha.2 fixes:
- *  - Qwen3 models are prompted with /no_think so answers stream immediately
- *    instead of 15-60s of hidden "reasoning" (blank bubble on phones).
- *  - While generating, the status line shows live token count and tok/s.
- *  - Loading waits for the engine to finish initializing (no state race).
- *  - The transcript auto-scrolls while the answer streams in.
+ * v0.2.0 changes (from alpha.2):
+ *  - "Deep think" ON by default: Qwen3 reasons inside  ... </think>
+ *    while a live "Thinking · N tokens" row keeps the user informed (Claude's
+ *    extended-thinking UX) instead of a blank bubble.
+ *  - Live streaming answer with a text cursor, meta stats per message
+ *    (thought/answered tokens, tok/s), copy action.
+ *  - Multilingual + thorough system prompt: mirror the user's language
+ *    (Bangla, English, Hindi, Arabic, Chinese...), structured full answers.
+ *  - PREDICT_LENGTH 512 → 1024 for longer, deeper replies.
+ *  - Model auto-load after engine init / download / import — no "Prepare"
+ *    button; the status chip itself drives download/load.
  */
 class ChatController(private val main: MainActivity) : SectionController(main) {
 
     override val view: View = inflate(R.layout.view_chat, null)
 
     private val statusText: TextView = view.findViewById(R.id.status_text)
+    private val statusDot: View = view.findViewById(R.id.status_dot)
     private val progressBar: ProgressBar = view.findViewById(R.id.progress)
     private val messagesRv: RecyclerView = view.findViewById(R.id.messages)
+    private val emptyState: View = view.findViewById(R.id.empty_state)
+    private val greeting: TextView = view.findViewById(R.id.greeting)
     private val inputEt: EditText = view.findViewById(R.id.input)
     private val sendBtn: ImageButton = view.findViewById(R.id.btn_send)
-    private val stopBtn: MaterialButton = view.findViewById(R.id.btn_stop)
-    private val prepareBtn: MaterialButton = view.findViewById(R.id.btn_prepare)
-    private val unloadBtn: MaterialButton = view.findViewById(R.id.btn_unload)
-    private val modelsBtn: MaterialButton = view.findViewById(R.id.btn_models)
+    private val deepChip: TextView = view.findViewById(R.id.chip_deep)
 
     private val messages = mutableListOf<Message>()
-    private val messageAdapter = MessageAdapter(messages)
-    private val lastAssistantMsg = StringBuilder()
+    private val messageAdapter = MessageAdapter(messages, ::copyToClipboard)
 
+    // engine + lifecycle state
     private var engine: InferenceEngine? = null
     private var generationJob: Job? = null
     private var busy = false
@@ -58,79 +65,121 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
     private var engineReady = false
     private var generating = false
     private var generationStartMs = 0L
+    private var stoppedByUser = false
+
+    // live generation state
+    private val rawBuffer = StringBuilder()
     private var tokenCount = 0
+    private var thinkAt = 0        // tokens consumed before the answer began
 
     init {
         Prefs.init(main)
 
+        setupGreeting()
         messagesRv.layoutManager = LinearLayoutManager(main).apply { stackFromEnd = true }
         messagesRv.adapter = messageAdapter
 
-        sendBtn.setOnClickListener { handleUserInput() }
-        stopBtn.setOnClickListener {
-            generationJob?.cancel()
-            generationJob = null
-            stopBtn.visibility = View.GONE
+        sendBtn.setOnClickListener {
+            if (generating) {
+                stoppedByUser = true
+                generationJob?.cancel()
+                generationJob = null
+            } else {
+                handleUserInput()
+            }
         }
-        prepareBtn.setOnClickListener { prepareModel() }
-        unloadBtn.setOnClickListener { unloadModel() }
-        modelsBtn.setOnClickListener { showModelDialog() }
+        deepChip.setOnClickListener { toggleDeepThink() }
+        view.findViewById<View>(R.id.btn_models).setOnClickListener { showModelDialog() }
+        view.findViewById<View>(R.id.btn_clear).setOnClickListener { confirmClearChat() }
+        statusText.setOnClickListener { onStatusChipTap() }
 
-        addMessage("NETMIND runs fully offline on this device. "
-            + "Download an open-weight model once (in-app), then chat without any "
-            + "server or company API.", isUser = false)
+        SUGGESTIONS.forEach { (id, prompt) ->
+            view.findViewById<View>(id).setOnClickListener {
+                if (!modelLoaded) {
+                    toast("Pick & download a model first (layers icon above)")
+                    return@setOnClickListener
+                }
+                inputEt.setText(prompt)
+                handleUserInput()
+            }
+        }
+
+        renderDeepChip()
+        updateEmptyState()
 
         main.lifecycleScope.launch(Dispatchers.Default) {
             val eng = try {
                 AiChat.getInferenceEngine(main.applicationContext)
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    statusText.text = "Engine failed to start: ${e.message ?: "native library error"}"
+                    chip("Engine failed to start: ${e.message ?: "native library error"}")
                 }
                 return@launch
             }
             engine = eng
-            withContext(Dispatchers.Main) { engineReady = true; renderButtons() }
+            withContext(Dispatchers.Main) {
+                engineReady = true
+                renderStatus()
+                maybeAutoStart()
+            }
             // Observe engine state: reflect readiness and load errors in the UI.
             eng.state.collect { st ->
                 withContext(Dispatchers.Main) {
                     if (st is InferenceEngine.State.Error) {
-                        statusText.text = "Engine error: ${st.exception.message ?: "unknown"}"
+                        chip("Engine error: ${st.exception.message ?: "unknown"}")
                         engineReady = false
                     }
-                    renderButtons()
+                    renderStatus()
                 }
             }
         }
         renderStatus()
+    }
+
+    // ---------------------------------------------------------------- welcome
+
+    private fun setupGreeting() {
+        val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        greeting.text = when {
+            h < 5 -> main.getString(R.string.greeting_default)
+            h < 12 -> main.getString(R.string.greeting_morning)
+            h < 17 -> main.getString(R.string.greeting_afternoon)
+            else -> main.getString(R.string.greeting_evening)
+        }
+    }
+
+    private fun updateEmptyState() {
+        emptyState.visibility =
+            if (messages.isEmpty() && !generating) View.VISIBLE else View.GONE
     }
 
     // ---------------------------------------------------------------- model
 
     private fun modelFile(): File? = ModelManager.currentFile(main)
 
-    private fun prepareModel() {
+    /** No explicit "Prepare" button anymore: the chip loads/downloads on tap. */
+    private fun onStatusChipTap() {
+        if (busy || generating || modelLoaded) return
         val file = modelFile()
-        if (file == null) {
-            toast("Select a model first (Models).")
-            return
+        when {
+            file != null && file.exists() -> loadModel(file)
+            file != null -> downloadModel()
+            else -> showModelDialog()
         }
-        if (file.exists()) {
-            loadModel(file)
-        } else if (Prefs.modelIndex == ModelManager.IMPORTED_INDEX) {
-            toast("Imported model file missing. Re-import it.")
-        } else {
-            downloadModel()
-        }
+    }
+
+    private fun maybeAutoStart() {
+        if (busy || generating || modelLoaded) return
+        val file = modelFile() ?: return
+        if (file.exists()) loadModel(file)
     }
 
     private fun downloadModel() {
         if (busy) return
         val file = modelFile() ?: run { toast("No model selected."); return }
         busy = true
-        renderStatus()
+        chip("Downloading ${file.name}…")
         val url = ModelManager.currentUrl()
-        toast("Downloading model (${url.substringAfterLast('/')})…")
 
         thread {
             val ok = ModelManager.download(url, file) { read, total ->
@@ -140,10 +189,10 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
                         progressBar.isIndeterminate = false
                         progressBar.max = (total / 1024).toInt()
                         progressBar.progress = (read / 1024).toInt()
-                        statusText.text = "Downloading… ${pct(read, total)}%"
+                        chip("Downloading… ${pct(read, total)}% — one time only")
                     } else {
                         progressBar.isIndeterminate = true
-                        statusText.text = "Downloading… ${read / (1024 * 1024)} MB"
+                        chip("Downloading… ${read / (1024 * 1024)} MB")
                     }
                 }
             }
@@ -151,13 +200,12 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
                 progressBar.visibility = View.GONE
                 busy = false
                 if (ok) {
-                    toast("Model downloaded. Loading…")
+                    chip("Downloaded — loading model…")
                     loadModel(file)
                 } else {
-                    toast("Download failed — check connection / URL.")
+                    chip("Download failed — tap to retry (check connection / URL)")
                     renderStatus()
                 }
-                renderButtons()
             }
         }
     }
@@ -167,8 +215,8 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
         val st = withTimeoutOrNull(30_000) {
             eng.state.first {
                 it is InferenceEngine.State.Initialized ||
-                it is InferenceEngine.State.ModelReady ||
-                it is InferenceEngine.State.Error
+                    it is InferenceEngine.State.ModelReady ||
+                    it is InferenceEngine.State.Error
             }
         } ?: throw IllegalStateException("Engine init timed out (30s)")
         if (st is InferenceEngine.State.Error) throw st.exception
@@ -178,12 +226,11 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
         if (busy) return
         val eng = engine
         if (eng == null) {
-            toast("Engine is still starting, try again in a moment.")
+            chip("Engine is still starting — tap again in a moment")
             return
         }
         busy = true
-        statusText.text = "Loading model…"
-        renderButtons()
+        chip("Loading ${file.name}…")
         main.lifecycleScope.launch(Dispatchers.IO) {
             try {
                 awaitEngineInitialized(eng)
@@ -194,42 +241,27 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
                     AppState.modelLoaded = true
                     busy = false
                     renderStatus()
-                    renderButtons()
-                    inputEt.hint = "Ask NETMIND anything…"
+                    inputEt.hint = "Message NetMind…"
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     modelLoaded = false
                     AppState.modelLoaded = false
                     busy = false
-                    statusText.text = "Load failed: ${e.message ?: e.javaClass.simpleName}"
-                    renderButtons()
+                    chip("Load failed: ${e.message ?: e.javaClass.simpleName}")
                 }
             }
         }
     }
 
-    private fun unloadModel() {
-        val eng = engine ?: return
-        if (busy) return
-        try {
-            eng.cleanUp()
-            modelLoaded = false
-            AppState.modelLoaded = false
-        } catch (_: Exception) {
-        }
-        renderStatus()
-        renderButtons()
-    }
-
     // ---------------------------------------------------------------- chat
 
     /**
-     * Qwen3 thinking models: append the documented "/no_think" switch so the
-     * model answers directly instead of emitting a long hidden reasoning
-     * block (which streamed as a blank bubble for 15-60s on phones).
+     * Qwen3 + Deep think OFF → append the documented "/no_think" switch for
+     * instant replies. Deep think ON → let the model reason (quality mode).
      */
     private fun transformPrompt(userMsg: String): String {
+        if (Prefs.deepThink) return userMsg
         val name = modelFile()?.name?.lowercase() ?: ""
         val isQwen3 = name.contains("qwen3") || name.contains("qwen_qwen3")
         return if (isQwen3 && !userMsg.contains("/no_think", ignoreCase = true)) {
@@ -241,81 +273,178 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
 
     private fun handleUserInput() {
         val userMsg = inputEt.text.toString().trim()
-        if (userMsg.isEmpty()) { toast("Input message is empty!"); return }
+        if (userMsg.isEmpty()) {
+            toast("Type a message first")
+            return
+        }
         val eng = engine
-        if (eng == null || !modelLoaded) { toast("Model not ready — press Prepare model."); return }
-        if (busy) return
+        if (eng == null || !modelLoaded) {
+            toast("Model not ready — see the status chip above")
+            renderStatus()
+            return
+        }
+        if (busy || generating) return
 
         inputEt.setText("")
-        inputEt.isEnabled = false
-        sendBtn.isEnabled = false
-        stopBtn.visibility = View.VISIBLE
-        busy = true
+        stoppedByUser = false
         generating = true
-        tokenCount = 0
-        generationStartMs = System.currentTimeMillis()
+        busy = true
+        setGeneratingUi(true)
 
-        addMessage(userMsg, isUser = true)
-        lastAssistantMsg.clear()
-        addMessage("", isUser = false)
-        renderStatus()
+        addMessage(Message(role = Role.USER, content = userMsg))
+        addMessage(Message(role = Role.THINKING, content = ""))
+        updateEmptyState()
+
+        rawBuffer.setLength(0)
+        tokenCount = 0
+        thinkAt = 0
+        generationStartMs = System.currentTimeMillis()
 
         val promptOut = transformPrompt(userMsg)
         generationJob = main.lifecycleScope.launch(Dispatchers.Default) {
             try {
-                eng.sendUserPrompt(promptOut, PREDICT_LENGTH).collect { token ->
-                    tokenCount++
-                    withContext(Dispatchers.Main) {
-                        lastAssistantMsg.append(token)
-                        updateLastMessage()
-                        renderStatus()
-                    }
+                eng.sendUserPrompt(promptOut, PREDICT_LENGTH).collect { tok ->
+                    withContext(Dispatchers.Main) { onToken(tok) }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
-                // user pressed Stop — cleanup happens in the finally block
+                // user pressed Stop — finalize happens in the finally block
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     toast("Generation failed: ${e.message ?: e.javaClass.simpleName}")
                 }
             } finally {
-                withContext(Dispatchers.Main) {
-                    generating = false
-                    busy = false
-                    updateLastMessage()
-                    inputEt.isEnabled = true
-                    stopBtn.visibility = View.GONE
-                    renderStatus()
-                    renderButtons()
-                }
+                withContext(Dispatchers.Main) { finishGeneration() }
             }
         }
+        renderStatus()
     }
 
-    private fun updateLastMessage() {
+    /**
+     * Live split of the raw stream into thinking vs. answer:
+     *  - inside the (unclosed) think block -> update the "Thinking" row
+     *  - after the closing think tag -> stream the answer with a cursor
+     *  - no think tags at all → stream directly (instant mode / Qwen2.5)
+     */
+    private fun onToken(tok: String) {
+        if (tok.isEmpty()) return
+        rawBuffer.append(tok)
+        tokenCount++
         if (messages.isEmpty()) return
         val idx = messages.size - 1
-        if (messages[idx].isUser) return
-        val visible = cleanReply(lastAssistantMsg.toString())
-        // While nothing is visible yet, show a live "thinking" placeholder
-        // instead of an empty bubble, and keep pinned to the newest message.
-        messages[idx] = messages[idx].copy(
-            content = visible.ifEmpty { if (generating) "…" else "" }
-        )
+        val raw = rawBuffer.toString()
+        val closeIdx = raw.indexOf(THINK_CLOSE)
+        when {
+            closeIdx >= 0 -> {
+                val answer = raw.substring(closeIdx + THINK_CLOSE.length).trim()
+                if (answer.isNotEmpty()) streamAnswer(answer, tokenCount)
+            }
+            raw.contains(THINK_OPEN) || raw.contains("<|think|>") -> {
+                messages[idx] = messages[idx].copy(content = "$tokenCount tokens")
+                messageAdapter.notifyItemChanged(idx)
+                messagesRv.scrollToPosition(idx)
+            }
+            else -> streamAnswer(raw.trim(), 0)
+        }
+        renderStatus()
+    }
+
+    private fun streamAnswer(answer: String, tokensBeforeAnswer: Int) {
+        if (messages.isEmpty()) return
+        val idx = messages.size - 1
+        if (messages[idx].role != Role.ASSISTANT) {
+            thinkAt = tokensBeforeAnswer
+            messages[idx] = messages[idx].copy(role = Role.ASSISTANT)
+        }
+        messages[idx] = messages[idx].copy(content = answer + CURSOR)
         messageAdapter.notifyItemChanged(idx)
         messagesRv.scrollToPosition(idx)
     }
 
-    /** Hide chain-of-thought blocks that small models sometimes emit. */
-    private fun cleanReply(raw: String): String {
-        var s = raw.replace(Regex("(?s)(<think>|<\\|think\\|>).*?(</think>|</\\|think\\|>)"), "")
-        s = s.replace(Regex("(?s)(<think>|<\\|think\\|>).*$"), "")
+    private fun finishGeneration() {
+        generating = false
+        busy = false
+        setGeneratingUi(false)
+
+        if (messages.isNotEmpty()) {
+            val idx = messages.size - 1
+            val raw = rawBuffer.toString()
+            when {
+                messages[idx].role == Role.ASSISTANT -> {
+                    val clean = extractAnswer(raw)
+                    if (clean.isBlank()) {
+                        messages.removeAt(idx)
+                        messageAdapter.notifyItemRemoved(idx)
+                        toast("Empty reply — try again")
+                    } else {
+                        messages[idx] = messages[idx].copy(content = clean, meta = statsMeta())
+                        messageAdapter.notifyItemChanged(idx)
+                    }
+                }
+                stoppedByUser -> {
+                    messages.removeAt(idx)
+                    messageAdapter.notifyItemRemoved(idx)
+                    toast("Stopped")
+                }
+                else -> { // hit the length limit while still thinking
+                    messages.removeAt(idx)
+                    messageAdapter.notifyItemRemoved(idx)
+                    chip("Ran out of length while thinking — try Deep think off for this one")
+                }
+            }
+        }
+        stoppedByUser = false
+        updateEmptyState()
+        renderStatus()
+    }
+
+    /** Final visible answer from the raw generation buffer. */
+    private fun extractAnswer(raw: String): String {
+        val closeIdx = raw.indexOf(THINK_CLOSE)
+        val s = if (closeIdx >= 0) raw.substring(closeIdx + THINK_CLOSE.length) else raw
         return s.trim()
     }
 
-    private fun addMessage(content: String, isUser: Boolean) {
-        messages.add(Message(UUID.randomUUID().toString(), content, isUser))
+    private fun statsMeta(): String {
+        val secs = (System.currentTimeMillis() - generationStartMs) / 1000.0
+        val rate = if (secs > 0.5) tokenCount / secs else 0.0
+        val answerTokens = (tokenCount - thinkAt).coerceAtLeast(0)
+        val parts = mutableListOf<String>()
+        if (thinkAt > 0) parts.add("thought $thinkAt tok")
+        parts.add("$answerTokens tok")
+        parts.add("%.1f tok/s".format(rate))
+        parts.add("%.0fs".format(secs))
+        if (stoppedByUser) parts.add("stopped")
+        return parts.joinToString(" · ")
+    }
+
+    private fun addMessage(m: Message) {
+        messages.add(m)
         messageAdapter.notifyItemInserted(messages.size - 1)
         messagesRv.scrollToPosition(messages.size - 1)
+    }
+
+    private fun setGeneratingUi(on: Boolean) {
+        sendBtn.setImageResource(if (on) R.drawable.ic_stop_square else R.drawable.ic_arrow_up)
+        inputEt.isEnabled = !on
+    }
+
+    // ---------------------------------------------------------------- deep think
+
+    private fun toggleDeepThink() {
+        if (busy || generating) return
+        Prefs.deepThink = !Prefs.deepThink
+        renderDeepChip()
+        toast(
+            if (Prefs.deepThink) "Deep think on — richer answers, a bit slower"
+            else "Deep think off — instant replies"
+        )
+    }
+
+    private fun renderDeepChip() {
+        val on = Prefs.deepThink
+        deepChip.text = if (on) main.getString(R.string.deep_think_on) else main.getString(R.string.deep_think_off)
+        deepChip.setBackgroundResource(if (on) R.drawable.bg_chip_deep_on else R.drawable.bg_chip)
+        deepChip.alpha = if (modelLoaded || engineReady) 1f else 0.6f
     }
 
     // ---------------------------------------------------------------- dialogs
@@ -353,6 +482,7 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
                     Prefs.modelFile = ModelManager.fileNameFromUrl(url)
                 }
                 renderStatus()
+                onStatusChipTap()   // auto-load or auto-download right away
             }
             .setNeutralButton("Import file…") { _, _ ->
                 main.pickModelFile()
@@ -373,8 +503,9 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
                     Prefs.modelIndex = ModelManager.IMPORTED_INDEX
                     Prefs.modelFile = name
                     main.runOnUiThread {
-                        toast("Imported $name. Press Prepare model to load.")
+                        toast("Imported $name — loading…")
                         renderStatus()
+                        loadModel(dest)
                     }
                 } ?: main.runOnUiThread { toast("Cannot open selected file") }
             } catch (e: Exception) {
@@ -383,29 +514,72 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
         }
     }
 
+    private fun confirmClearChat() {
+        if (messages.isEmpty()) {
+            toast("Nothing to clear")
+            return
+        }
+        AlertDialog.Builder(main)
+            .setTitle(R.string.confirm_clear_title)
+            .setMessage(R.string.confirm_clear_msg)
+            .setPositiveButton("Clear") { _, _ -> clearConversation() }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun clearConversation() {
+        messages.clear()
+        messageAdapter.replaceAll(emptyList())
+        updateEmptyState()
+        val eng = engine
+        if (eng != null && modelLoaded) {
+            // Re-sending the system prompt resets the engine's conversation
+            // history (processSystemPrompt clears long-term state in JNI).
+            main.lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    eng.setSystemPrompt(SYSTEM_PROMPT)
+                } catch (_: Exception) {
+                }
+            }
+        }
+        toast("New conversation")
+    }
+
     // ---------------------------------------------------------------- ui state
 
     private fun pct(read: Long, total: Long): Int = (read * 100 / total).toInt()
 
-    private fun renderStatus() {
-        val file = modelFile()
-        statusText.text = when {
-            generating -> {
-                val sec = (System.currentTimeMillis() - generationStartMs) / 1000.0
-                val speed = if (sec > 0.5) tokenCount / sec else 0.0
-                "Generating — %d tokens, %.1f tok/s".format(tokenCount, speed)
-            }
-            busy -> statusText.text
-            modelLoaded -> "Model ready — 100% offline"
-            file != null && file.exists() -> "Model present: ${file.name} (${ModelManager.sizeLabel(file)}) — press Prepare"
-            else -> "No model downloaded yet"
-        }
+    private fun chip(text: String) {
+        statusText.visibility = View.VISIBLE
+        statusText.text = text
     }
 
-    private fun renderButtons() {
-        prepareBtn.isEnabled = !busy && engineReady && !modelLoaded
-        unloadBtn.isEnabled = !busy && modelLoaded
-        sendBtn.isEnabled = !busy && modelLoaded
+    private fun rate(): Double {
+        val secs = (System.currentTimeMillis() - generationStartMs) / 1000.0
+        return if (secs > 0.5) tokenCount / secs else 0.0
+    }
+
+    private fun renderStatus() {
+        val file = modelFile()
+        statusDot.alpha = if (modelLoaded) 1f else 0.35f
+        when {
+            generating -> chip("Generating · $tokenCount tok · %.1f tok/s".format(rate()))
+            busy -> { /* chip text already set by download/load code */ }
+            modelLoaded -> statusText.visibility = View.GONE
+            file != null && file.exists() ->
+                chip("Tap to load ${file.name} · ${ModelManager.sizeLabel(file)}")
+            file != null -> chip("Tap to download ${file.name} · one time only")
+            else -> chip("No model yet — tap to get started")
+        }
+        statusText.isClickable = !busy && !generating && !modelLoaded
+    }
+
+    private fun copyToClipboard(text: String) {
+        val clean = text.trim()
+        if (clean.isEmpty()) return
+        val cm = main.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("NetMind", clean))
+        toast("Copied")
     }
 
     private fun toast(msg: String) =
@@ -413,7 +587,6 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
 
     override fun onShown() {
         renderStatus()
-        renderButtons()
     }
 
     override fun onDestroy() {
@@ -421,12 +594,41 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
     }
 
     companion object {
-        private const val PREDICT_LENGTH = 512
+        private const val PREDICT_LENGTH = 1024
+
+        private const val THINK_OPEN = "<think>"
+        private const val THINK_CLOSE = "</think>"
+
+        private const val CURSOR = " ▍"
+
+        /** Prompt presets shown on the welcome screen. */
+        private val SUGGESTIONS: List<Pair<Int, String>> = listOf(
+            R.id.sg_explain to
+                "Explain how transformer models work — step by step, with a simple worked example.",
+            R.id.sg_bangla to
+                "AI কী? সহজ বাংলায় বিস্তারিত ব্যাখ্যা করো — ধাপে ধাপে, উদাহরণসহ।",
+            R.id.sg_translate to
+                "Translate into natural, flowing Bangla: \"The best way to learn is to teach.\" Then briefly explain your word choices.",
+            R.id.sg_code to
+                "Write a Python function that checks whether a number is prime, with comments explaining each step.",
+        )
 
         private const val SYSTEM_PROMPT =
-            "You are NETMIND, a helpful offline assistant running entirely on the " +
-            "user's phone as part of a volunteer distributed AI network. " +
-            "Reply in the same language the user writes in (Bangla or English). " +
-            "Be concise and practical unless the user asks for detail."
+            "You are NetMind — a thoughtful, thorough AI assistant that runs entirely offline " +
+                "on the user's own phone (open-weight Qwen3 on llama.cpp, part of the volunteer " +
+                "NETMIND network; no cloud, no tracking).\n" +
+                "Answering rules:\n" +
+                "1. LANGUAGE: Always reply in the SAME language the user writes in — বাংলা, " +
+                "English, हिन्दी, العربية, 中文 or any other. If the user writes Bangla, reply in " +
+                "Bangla. Never switch to English unless the user asked in English.\n" +
+                "2. DEPTH: Write complete, well-structured answers — short paragraphs, headings " +
+                "or bullet lists where helpful, concrete examples. For code, give working code " +
+                "with short comments. Do not end after one bare sentence unless the question " +
+                "itself is tiny.\n" +
+                "3. THINKING: Work through the problem carefully before answering; keep the " +
+                "final answer clean and self-contained.\n" +
+                "4. HONESTY: You are a small 0.6B on-device model, not a cloud giant. If a task " +
+                "is beyond you (long essays, precise recent facts, hard math), say so briefly — " +
+                "then still give your best attempt."
     }
 }
