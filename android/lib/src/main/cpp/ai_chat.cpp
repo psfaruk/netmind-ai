@@ -28,10 +28,10 @@ constexpr int   N_THREADS_MIN           = 2;
 constexpr int   N_THREADS_MAX           = 4;
 constexpr int   N_THREADS_HEADROOM      = 2;
 
-constexpr int   DEFAULT_CONTEXT_SIZE    = 8192;
+constexpr int   DEFAULT_CONTEXT_SIZE    = 4096;
 constexpr int   OVERFLOW_HEADROOM       = 4;
 constexpr int   BATCH_SIZE              = 512;
-constexpr float DEFAULT_SAMPLER_TEMP    = 0.3f;
+constexpr float DEFAULT_SAMPLER_TEMP    = 0.7f;
 
 static llama_model                      * g_model;
 static llama_context                    * g_context;
@@ -107,6 +107,10 @@ static llama_context *init_context(llama_model *model, const int n_ctx = DEFAULT
 static common_sampler *new_sampler(float temp) {
     common_params_sampling sparams;
     sparams.temp = temp;
+    // Qwen3 recommended sampling: temp 0.7, top_p 0.95, top_k 20.
+    // Low-temp (0.3) greedy-ish sampling made small thinking models loop.
+    sparams.top_p = 0.95f;
+    sparams.top_k = 20;
     return common_sampler_init(g_model, sparams);
 }
 

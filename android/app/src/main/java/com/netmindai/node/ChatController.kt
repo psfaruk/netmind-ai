@@ -18,11 +18,20 @@ import java.util.UUID
 import kotlin.concurrent.thread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Chat section: local, offline LLM chat backed by the llama.cpp binding.
+ *
+ * alpha.2 fixes:
+ *  - Qwen3 models are prompted with /no_think so answers stream immediately
+ *    instead of 15-60s of hidden "reasoning" (blank bubble on phones).
+ *  - While generating, the status line shows live token count and tok/s.
+ *  - Loading waits for the engine to finish initializing (no state race).
+ *  - The transcript auto-scrolls while the answer streams in.
  */
 class ChatController(private val main: MainActivity) : SectionController(main) {
 
@@ -47,6 +56,9 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
     private var busy = false
     private var modelLoaded = false
     private var engineReady = false
+    private var generating = false
+    private var generationStartMs = 0L
+    private var tokenCount = 0
 
     init {
         Prefs.init(main)
@@ -69,8 +81,26 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
             + "server or company API.", isUser = false)
 
         main.lifecycleScope.launch(Dispatchers.Default) {
-            engine = AiChat.getInferenceEngine(main.applicationContext)
+            val eng = try {
+                AiChat.getInferenceEngine(main.applicationContext)
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    statusText.text = "Engine failed to start: ${e.message ?: "native library error"}"
+                }
+                return@launch
+            }
+            engine = eng
             withContext(Dispatchers.Main) { engineReady = true; renderButtons() }
+            // Observe engine state: reflect readiness and load errors in the UI.
+            eng.state.collect { st ->
+                withContext(Dispatchers.Main) {
+                    if (st is InferenceEngine.State.Error) {
+                        statusText.text = "Engine error: ${st.exception.message ?: "unknown"}"
+                        engineReady = false
+                    }
+                    renderButtons()
+                }
+            }
         }
         renderStatus()
     }
@@ -132,10 +162,22 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
         }
     }
 
+    /** Wait (bounded) until the native engine finishes initializing. */
+    private suspend fun awaitEngineInitialized(eng: InferenceEngine) {
+        val st = withTimeoutOrNull(30_000) {
+            eng.state.first {
+                it is InferenceEngine.State.Initialized ||
+                it is InferenceEngine.State.ModelReady ||
+                it is InferenceEngine.State.Error
+            }
+        } ?: throw IllegalStateException("Engine init timed out (30s)")
+        if (st is InferenceEngine.State.Error) throw st.exception
+    }
+
     private fun loadModel(file: File) {
         if (busy) return
         val eng = engine
-        if (eng == null || !engineReady) {
+        if (eng == null) {
             toast("Engine is still starting, try again in a moment.")
             return
         }
@@ -144,6 +186,7 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
         renderButtons()
         main.lifecycleScope.launch(Dispatchers.IO) {
             try {
+                awaitEngineInitialized(eng)
                 eng.loadModel(file.path)
                 eng.setSystemPrompt(SYSTEM_PROMPT)
                 withContext(Dispatchers.Main) {
@@ -181,34 +224,68 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
 
     // ---------------------------------------------------------------- chat
 
+    /**
+     * Qwen3 thinking models: append the documented "/no_think" switch so the
+     * model answers directly instead of emitting a long hidden reasoning
+     * block (which streamed as a blank bubble for 15-60s on phones).
+     */
+    private fun transformPrompt(userMsg: String): String {
+        val name = modelFile()?.name?.lowercase() ?: ""
+        val isQwen3 = name.contains("qwen3") || name.contains("qwen_qwen3")
+        return if (isQwen3 && !userMsg.contains("/no_think", ignoreCase = true)) {
+            "$userMsg /no_think"
+        } else {
+            userMsg
+        }
+    }
+
     private fun handleUserInput() {
         val userMsg = inputEt.text.toString().trim()
         if (userMsg.isEmpty()) { toast("Input message is empty!"); return }
         val eng = engine
         if (eng == null || !modelLoaded) { toast("Model not ready — press Prepare model."); return }
+        if (busy) return
 
         inputEt.setText("")
         inputEt.isEnabled = false
         sendBtn.isEnabled = false
         stopBtn.visibility = View.VISIBLE
+        busy = true
+        generating = true
+        tokenCount = 0
+        generationStartMs = System.currentTimeMillis()
 
         addMessage(userMsg, isUser = true)
         lastAssistantMsg.clear()
         addMessage("", isUser = false)
+        renderStatus()
 
+        val promptOut = transformPrompt(userMsg)
         generationJob = main.lifecycleScope.launch(Dispatchers.Default) {
             try {
-                eng.sendUserPrompt(userMsg, PREDICT_LENGTH).collect { token ->
+                eng.sendUserPrompt(promptOut, PREDICT_LENGTH).collect { token ->
+                    tokenCount++
                     withContext(Dispatchers.Main) {
                         lastAssistantMsg.append(token)
                         updateLastMessage()
+                        renderStatus()
                     }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // user pressed Stop — cleanup happens in the finally block
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    toast("Generation failed: ${e.message ?: e.javaClass.simpleName}")
                 }
             } finally {
                 withContext(Dispatchers.Main) {
+                    generating = false
+                    busy = false
+                    updateLastMessage()
                     inputEt.isEnabled = true
-                    sendBtn.isEnabled = true
                     stopBtn.visibility = View.GONE
+                    renderStatus()
+                    renderButtons()
                 }
             }
         }
@@ -218,8 +295,14 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
         if (messages.isEmpty()) return
         val idx = messages.size - 1
         if (messages[idx].isUser) return
-        messages[idx] = messages[idx].copy(content = cleanReply(lastAssistantMsg.toString()))
+        val visible = cleanReply(lastAssistantMsg.toString())
+        // While nothing is visible yet, show a live "thinking" placeholder
+        // instead of an empty bubble, and keep pinned to the newest message.
+        messages[idx] = messages[idx].copy(
+            content = visible.ifEmpty { if (generating) "…" else "" }
+        )
         messageAdapter.notifyItemChanged(idx)
+        messagesRv.scrollToPosition(idx)
     }
 
     /** Hide chain-of-thought blocks that small models sometimes emit. */
@@ -307,6 +390,11 @@ class ChatController(private val main: MainActivity) : SectionController(main) {
     private fun renderStatus() {
         val file = modelFile()
         statusText.text = when {
+            generating -> {
+                val sec = (System.currentTimeMillis() - generationStartMs) / 1000.0
+                val speed = if (sec > 0.5) tokenCount / sec else 0.0
+                "Generating — %d tokens, %.1f tok/s".format(tokenCount, speed)
+            }
             busy -> statusText.text
             modelLoaded -> "Model ready — 100% offline"
             file != null && file.exists() -> "Model present: ${file.name} (${ModelManager.sizeLabel(file)}) — press Prepare"
