@@ -1,0 +1,32 @@
+# Production profile: PostgreSQL + coordinator.
+# Dev profile needs nothing — SQLite (see README Quick Start).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: netmind
+      POSTGRES_PASSWORD: netmind-change-me
+      POSTGRES_DB: netmind
+    volumes:
+      - netmind_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netmind"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  coordinator:
+    build: .
+    environment:
+      NETMIND_ENVIRONMENT: prod
+      NETMIND_DATABASE_URL: postgresql+asyncpg://netmind:netmind-change-me@db:5432/netmind
+      # NETMIND_JWT_SECRET must be provided: `NETMIND_JWT_SECRET=... docker compose up`
+      NETMIND_JWT_SECRET: ${NETMIND_JWT_SECRET:?set NETMIND_JWT_SECRET}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  netmind_pgdata:

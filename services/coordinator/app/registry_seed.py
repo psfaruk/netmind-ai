@@ -1,0 +1,86 @@
+"""Seed catalog — real open-weight model metadata from Nov 2026 research
+(docs/RESEARCH_AND_FEASIBILITY.md §2). availability=false everywhere:
+no runtime is deployed yet, so nothing is claimed to be usable (charter rule #4)."""
+
+CATALOG: list[dict] = [
+    {
+        "id": "qwen3-0.6b-q4", "name": "Qwen3 0.6B", "version": "2025",
+        "license": "Apache-2.0", "capabilities": ["chat", "reasoning"],
+        "languages": ["en", "bn-partial", "100+"], "context_length": 32768,
+        "quantization": "Q4_K_M", "memory_requirement_mb": 600,
+        "runtimes": ["llama.cpp"], "benchmark_refs": {},
+        "deployment_location": "none", "availability": False,
+    },
+    {
+        "id": "qwen3-1.7b-q4", "name": "Qwen3 1.7B", "version": "2025",
+        "license": "Apache-2.0", "capabilities": ["chat", "reasoning", "coding"],
+        "languages": ["en", "bn-partial", "100+"], "context_length": 32768,
+        "quantization": "Q4_K_M", "memory_requirement_mb": 1200,
+        "runtimes": ["llama.cpp"], "benchmark_refs": {},
+        "deployment_location": "none", "availability": False,
+    },
+    {
+        "id": "qwen3-4b-q4", "name": "Qwen3 4B", "version": "2025",
+        "license": "Apache-2.0", "capabilities": ["chat", "reasoning", "coding"],
+        "languages": ["en", "bn-partial", "100+"], "context_length": 32768,
+        "quantization": "Q4_K_M", "memory_requirement_mb": 2600,
+        "runtimes": ["llama.cpp"], "benchmark_refs": {},
+        "deployment_location": "none", "availability": False,
+    },
+    {
+        "id": "qwen3-8b-q4", "name": "Qwen3 8B", "version": "2025",
+        "license": "Apache-2.0", "capabilities": ["chat", "reasoning", "coding"],
+        "languages": ["en", "bn-partial", "100+"], "context_length": 32768,
+        "quantization": "Q4_K_M", "memory_requirement_mb": 5000,
+        "runtimes": ["llama.cpp"], "benchmark_refs": {},
+        "deployment_location": "none", "availability": False,
+    },
+    {
+        "id": "gpt-oss-20b-q4", "name": "gpt-oss 20B", "version": "2025",
+        "license": "Apache-2.0", "capabilities": ["chat", "reasoning"],
+        "languages": ["en", "bn-partial"], "context_length": 128000,
+        "quantization": "Q4_K_M", "memory_requirement_mb": 14000,
+        "runtimes": ["llama.cpp"], "benchmark_refs": {},
+        "deployment_location": "none", "availability": False,
+    },
+    {
+        "id": "phi-4-14b-q4", "name": "Phi-4 14B", "version": "2024",
+        "license": "MIT", "capabilities": ["chat", "reasoning", "coding"],
+        "languages": ["en", "bn-untested"], "context_length": 16384,
+        "quantization": "Q4_K_M", "memory_requirement_mb": 9000,
+        "runtimes": ["llama.cpp"], "benchmark_refs": {},
+        "deployment_location": "none", "availability": False,
+    },
+    {
+        "id": "gemma3-4b-q4", "name": "Gemma 3 4B (multimodal)", "version": "2025",
+        "license": "Gemma-Terms", "capabilities": ["chat", "vision"],
+        "languages": ["en", "bn-partial", "140+"], "context_length": 128000,
+        "quantization": "Q4_K_M", "memory_requirement_mb": 2600,
+        "runtimes": ["llama.cpp"], "benchmark_refs": {},
+        "deployment_location": "none", "availability": False,
+    },
+    {
+        "id": "whisper-small", "name": "Whisper Small", "version": "2022",
+        "license": "MIT", "capabilities": ["speech"],
+        "languages": ["en", "bn-partial", "multilingual"], "context_length": 0,
+        "quantization": "f16", "memory_requirement_mb": 1000,
+        "runtimes": ["onnx"], "benchmark_refs": {},
+        "deployment_location": "none", "availability": False,
+    },
+    {
+        "id": "banglaspeech2text", "name": "BanglaSpeech2Text (Whisper fine-tune)", "version": "2024",
+        "license": "MIT", "capabilities": ["speech"],
+        "languages": ["bn-native"], "context_length": 0,
+        "quantization": "f16", "memory_requirement_mb": 1000,
+        "runtimes": ["onnx"], "benchmark_refs": {},
+        "deployment_location": "none", "availability": False,
+    },
+    {
+        "id": "bge-m3", "name": "bge-m3 embeddings", "version": "2024",
+        "license": "MIT", "capabilities": ["embeddings"],
+        "languages": ["en", "bn-partial", "100+"], "context_length": 8192,
+        "quantization": "f16", "memory_requirement_mb": 2000,
+        "runtimes": ["onnx"], "benchmark_refs": {},
+        "deployment_location": "none", "availability": False,
+    },
+]

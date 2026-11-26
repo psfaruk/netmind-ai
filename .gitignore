@@ -1,0 +1,20 @@
+# Build outputs / caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Android / Gradle
+android/.gradle/
+android/.idea/
+android/build/
+android/app/build/
+android/lib/build/
+android/.cxx/
+android/local.properties
+android/lib/src/main/cpp/llama.cpp/
+
+# OS junk
+.DS_Store
+Thumbs.db

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.Netmind" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/netmind_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimaryContainer">@color/netmind_primary_container</item>
+        <item name="colorSecondary">@color/netmind_accent</item>
+        <item name="android:statusBarColor">?attr/colorSurface</item>
+    </style>
+</resources>

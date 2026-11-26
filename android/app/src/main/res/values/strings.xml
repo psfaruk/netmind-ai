@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NETMIND AI</string>
+
+    <!-- Tabs -->
+    <string name="tab_chat">Chat</string>
+    <string name="tab_tasks">Tasks</string>
+    <string name="tab_node">Node</string>
+
+    <!-- Chat -->
+    <string name="status_engine_starting">Starting NETMIND engine…</string>
+    <string name="btn_models">Model ▾</string>
+    <string name="btn_prepare">Prepare model</string>
+    <string name="btn_stop">Stop</string>
+    <string name="btn_unload">Unload</string>
+    <string name="btn_send">Send</string>
+    <string name="hint_input">Type a message…</string>
+    <string name="dialog_model_note">Only open-weight GGUF models are supported. The file is
+        downloaded once into app storage and inference runs 100% on this device —
+        no vendor API is contacted.</string>
+    <string name="hint_custom_url">Custom .gguf URL</string>
+
+    <!-- Tasks -->
+    <string name="tasks_header">Local tasks (offline)</string>
+    <string name="tasks_sub">Tap to complete • long-press to delete. Stored in a local
+        SQLite database on this device only.</string>
+    <string name="hint_task">New task…</string>
+    <string name="btn_add">Add</string>
+    <string name="tasks_empty">No tasks yet. Add one above.</string>
+
+    <!-- Node -->
+    <string name="node_header">This device as a NETMIND node</string>
+    <string name="btn_refresh">Refresh</string>
+</resources>
