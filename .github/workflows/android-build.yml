@@ -24,18 +24,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
+      # ubuntu-latest runners ship a preinstalled Android SDK at ANDROID_HOME
+      # (setup-android@v3 currently breaks on cmdline-tools 16.0 / 'tools' pkg).
       - name: Install SDK components (platform, NDK, CMake)
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager --install \
+          SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMGR" --licenses > /dev/null || true
+          "$SDKMGR" --install \
             "platform-tools" \
             "platforms;android-36" \
             "build-tools;35.0.0" \
             "ndk;29.0.13113456" \
             "cmake;3.31.6" > /dev/null
+          echo "ANDROID_HOME=$ANDROID_HOME"
 
       - name: Fetch pinned llama.cpp source
         run: bash scripts/fetch-llama.sh android/lib/src/main/cpp/llama.cpp
