@@ -33,6 +33,25 @@ Requirements: Android 9+ (API 28), arm64 phone (or x86_64 emulator), ~2 GB free 
 
 Every push to `main` is built by GitHub Actions; tagged versions (`v*`) are published as GitHub Releases automatically.
 
+### v0.1.0-alpha.2 (bug-fix release)
+
+If `alpha.1` seemed to "hang" after sending a message (blank reply), install `alpha.2`:
+
+- **Blank bubble for 15-60 s:** the Qwen3-0.6B model always runs a long hidden
+  "thinking" phase before answering, and the app was stripping it from the UI
+  entirely — so nothing visible happened for up to a minute on phones.
+  alpha.2 sends Qwen3's documented `/no_think` switch with every prompt, so
+  answers start streaming immediately, and shows a live
+  "Generating — N tokens, X tok/s" indicator plus a "…" placeholder.
+- **Qwen3 sampling:** temp 0.3 → 0.7, top_p 0.95, top_k 20 (Qwen3's
+  recommended settings) — low temperature caused repetition loops.
+- **UI covered by system bars:** edge-to-edge was enforced without insets
+  padding, so the status row sat under the status bar and the input row
+  under the gesture nav bar. Insets are now applied (status / nav / IME).
+- **Engine race:** "Prepare model" could fail with a state error if pressed
+  right after app start; loading now waits for engine init (30 s cap).
+- Context size 8192 → 4096 (halves RAM pressure on low-end phones).
+
 ## What is in this repository
 
 | Path | Contents |
