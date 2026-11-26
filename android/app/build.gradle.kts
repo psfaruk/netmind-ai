@@ -49,6 +49,15 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    // llama.cpp is built with GGML_BACKEND_DL=ON and dlopens its CPU variant
+    // .so files from the native library dir at runtime -> they must be
+    // extracted from the APK (legacy packaging).
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {

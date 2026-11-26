@@ -10,7 +10,10 @@ android {
     ndkVersion = "29.0.13113456"
 
     defaultConfig {
-        minSdk = 33
+        // NETMIND: lowered from the sample's 33 to 28 (Android 9) so that older
+        // volunteer devices can install the node app. Nothing in the binding
+        // uses API > 28.
+        minSdk = 28
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")

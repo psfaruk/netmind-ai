@@ -28,6 +28,7 @@ jobs:
       # (setup-android@v3 currently breaks on cmdline-tools 16.0 / 'tools' pkg).
       - name: Install SDK components (platform, NDK, CMake)
         run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMGR" --licenses > /dev/null || true
           "$SDKMGR" --install \
